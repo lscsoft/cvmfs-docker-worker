@@ -6,17 +6,20 @@ def job(payload):
         for event in payload['events']:
             if is_tag_event(event):
                 image_info = get_image_info(event)
+                cvmfs.publish_docker_image(image_info,
+                    'ligo-containers.opensciencegrid.org', rootdir)
+                return True
     elif "repository" in payload:
         rootdir = 'dockerhub'
         namespace = payload['repository']['namespace']
         project = payload['repository']['name']
         tag = payload['push_data']['tag']
         image_info = cvmfs.ImageInfo('', namespace, project, tag)
+        cvmfs.publish_docker_image(image_info,
+            'ligo-containers.opensciencegrid.org', rootdir)
+        return True
     else:
         return None
-            
-    cvmfs.publish_docker_image(image_info,
-            'ligo-containers.opensciencegrid.org', rootdir)
 
 def is_tag_event(event):
     try:
