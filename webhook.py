@@ -13,8 +13,9 @@ def job(payload):
         rootdir = 'dockerhub'
         namespace = payload['repository']['namespace']
         project = payload['repository']['name']
+        digest = None
         tag = payload['push_data']['tag']
-        image_info = cvmfs.ImageInfo('', namespace, project, tag)
+        image_info = cvmfs.ImageInfo('', namespace, project, digest, tag)
         cvmfs.publish_docker_image(image_info,
             'ligo-containers.opensciencegrid.org', rootdir)
         return True
@@ -34,6 +35,7 @@ def get_image_info(event):
         return cvmfs.ImageInfo(event['request']['host'],
                    event['target']['repository'].rpartition("/")[0],
                    event['target']['repository'].rpartition("/")[2],
+                   event['target']['digest'],
                    event['target']['tag'])
     except:
         return None

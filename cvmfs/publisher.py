@@ -34,10 +34,11 @@ import tarfile
 import json
 
 class ImageInfo:
-    def __init__(self, registry, namespace, project, tag="latest"):
+    def __init__(self, registry, namespace, project, digest, tag="latest"):
         self.registry = registry
         self.namespace = namespace
         self.project = project
+        self.digest = digest
         self.tag = tag
 
     def name(self):
@@ -107,19 +108,7 @@ def create_symlink(image_dir, tag_dir):
 def write_docker_image(image_dir, filesystem, image):
     # we should check to make sure that we're in a txn
 
-    image_stream = image.save()
-    with tempfile.NamedTemporaryFile() as f:
-        for chunk in image_stream.stream():
-            f.write(chunk)
-        f.flush()
-
-        tf = tarfile.open(name=f.name,mode='r')
-        manifest = json.loads(tf.extractfile('manifest.json').read().decode('utf-8'))[0]
-        tarballs = manifest['Layers']
-
-        for tarball in tarballs:
-            tb = tarfile.open(mode='r',fileobj=tf.extractfile(tarball),errorlevel=0)
-            tb.extractall(path=image_dir)
+    os.system("singularity build --sandbox %s docker://%s" % (image_dir,image) )
 
     # Walk the path, fixing file permissions
     for (dirpath, dirnames, filenames) in os.walk(image_dir):
@@ -172,14 +161,15 @@ def publish_docker_image(image_info, filesystem, rootdir='',
     # handle uncaught exceptions by aborting transaction
     sys.excepthook = abort_txn
 
-    client = docker.from_env(timeout=3600)
+    if image_info.digest is not None:
+        digest = image_info.digest
+    else:
+        client = docker.from_env(timeout=3600)
+        image = client.images.pull(image_info.name())
+        digest = image.attrs['RepoDigests'][0].split('@')[1]
+        client.images.remove(image_info.name())
 
-    if username is not None and token is not None:
-        client.login(username=username, password=token,
-                registry=image_info.registry) 
-
-    image = client.images.pull(image_info.name())
-    image_hash = image.attrs['Id'].split(":")[-1] 
+    (hash_alg, image_hash) = digest.split(':')
 
     # we will stage the image to $ROOTFS/.images/$HASH
 
@@ -190,12 +180,13 @@ def publish_docker_image(image_info, filesystem, rootdir='',
 
     # a single image can have multiple tags. User-facing directories with tags
     # should be symlinks to a single copy of the image
-    image_dir = os.path.join("/cvmfs", filesystem, ".images", image_hash[0:2], image_hash[2:])
+    image_dir = os.path.join("/cvmfs", filesystem, rootdir, image_info.namespace, "%s@%s" % (image_info.project, image_info.digest))
     if not os.path.exists(image_dir):
-        write_docker_image(image_dir, filesystem, image)
+        os.makedirs(image_dir)
+        write_docker_image(image_dir, filesystem, image_info.name())
 
     tag_dir = os.path.join("/cvmfs", filesystem, rootdir, image_info.namespace, "%s:%s" % (image_info.project, image_info.tag))
-    create_symlink(image_dir, tag_dir)
+    create_symlink(os.path.basename(image_dir), tag_dir)
 
     # publish the CVMFS changes
     publish_txn(filesystem)
