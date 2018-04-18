@@ -169,10 +169,6 @@ def publish_docker_image(image_info, filesystem, rootdir='',
         digest = image.attrs['RepoDigests'][0].split('@')[1]
         client.images.remove(image_info.name())
 
-    (hash_alg, image_hash) = digest.split(':')
-
-    # we will stage the image to $ROOTFS/.images/$HASH
-
     # start transaction to trigger fs mount
     retval = start_txn(filesystem)
     if retval:
@@ -180,7 +176,7 @@ def publish_docker_image(image_info, filesystem, rootdir='',
 
     # a single image can have multiple tags. User-facing directories with tags
     # should be symlinks to a single copy of the image
-    image_dir = os.path.join("/cvmfs", filesystem, rootdir, image_info.namespace, "%s@%s" % (image_info.project, image_info.digest))
+    image_dir = os.path.join("/cvmfs", filesystem, rootdir, image_info.namespace, "%s@%s" % (image_info.project, digest))
     if not os.path.exists(image_dir):
         os.makedirs(image_dir)
         write_docker_image(image_dir, filesystem, image_info.name())
