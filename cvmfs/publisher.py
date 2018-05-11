@@ -46,17 +46,16 @@ class ImageInfo:
 
 _in_txn = False
 
-def abort_txn(exception_type, value, traceback):
-    os.system("cvmfs_server abort -f %s" % filesystem)
-    sys.stderr.write("Handling uncaught exception by aborting transaction!")
-    sys.exit(1)
+def abort_txn(filesystem):
+    sys.stderr.write("Aborting transaction on %s!\n" % filesystem)
+    return os.system("cvmfs_server abort -f %s" % filesystem)
 
 def start_txn(filesystem):
     global _in_txn
     if _in_txn:
         return 0
     if os.path.exists("/var/spool/cvmfs/%s/in_transaction.lock" % filesystem):
-        result = os.system("cvmfs_server abort -f %s" % filesystem)
+        result = abort_txn(filesystem)
         if result:
             sys.stderr.write("Failed to abort lingering transaction (exit status %d).")
             return 1
@@ -162,9 +161,6 @@ def write_docker_image(image_dir, filesystem, image):
 def publish_docker_image(image_info, filesystem, rootdir='',
                   username=None, token=None):
 
-    # handle uncaught exceptions by aborting transaction
-    sys.excepthook = abort_txn
-
     if image_info.digest is not None:
         digest = image_info.digest
     else:
@@ -188,4 +184,4 @@ def publish_docker_image(image_info, filesystem, rootdir='',
             create_symlink(os.path.basename(image_dir), tag_dir)
             publish_txn(filesystem)
         else:
-            abort_txn()
+            abort_txn(filesystem)
