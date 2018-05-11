@@ -108,7 +108,9 @@ def create_symlink(image_dir, tag_dir):
 def write_docker_image(image_dir, filesystem, image):
     # we should check to make sure that we're in a txn
 
-    os.system("singularity build --sandbox %s docker://%s" % (image_dir,image) )
+    status = os.system("singularity build --sandbox %s docker://%s" % (image_dir,image) )
+    if os.WEXITSTATUS(status) != 0:
+        return False
 
     # Walk the path, fixing file permissions
     for (dirpath, dirnames, filenames) in os.walk(image_dir):
@@ -155,6 +157,8 @@ def write_docker_image(image_dir, filesystem, image):
     if not os.path.exists(sys_dir):
         os.makedirs(sys_dir)
 
+    return True
+
 def publish_docker_image(image_info, filesystem, rootdir='',
                   username=None, token=None):
 
@@ -179,10 +183,9 @@ def publish_docker_image(image_info, filesystem, rootdir='',
     image_dir = os.path.join("/cvmfs", filesystem, rootdir, image_info.namespace, "%s@%s" % (image_info.project, digest))
     if not os.path.exists(image_dir):
         os.makedirs(image_dir)
-        write_docker_image(image_dir, filesystem, image_info.name())
-
-    tag_dir = os.path.join("/cvmfs", filesystem, rootdir, image_info.namespace, "%s:%s" % (image_info.project, image_info.tag))
-    create_symlink(os.path.basename(image_dir), tag_dir)
-
-    # publish the CVMFS changes
-    publish_txn(filesystem)
+        if write_docker_image(image_dir, filesystem, image_info.name()):
+            tag_dir = os.path.join("/cvmfs", filesystem, rootdir, image_info.namespace, "%s:%s" % (image_info.project, image_info.tag))
+            create_symlink(os.path.basename(image_dir), tag_dir)
+            publish_txn(filesystem)
+        else:
+            abort_txn()
