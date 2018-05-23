@@ -127,9 +127,12 @@ def write_docker_image(image_dir, filesystem, image):
                 print(("Fixing mode of", full_dname, "to", oct(new_mode)))
                 os.chmod(full_dname, new_mode)
 
+    # turns out to be a lot easier to add bind points and
+    # de-publish directories if we have write perms on root path
+    os.chmod(image_dir, 0o0755)
+
     # if the image contains a linux operating system, then add bind points
     if glob.glob(os.path.join(image_dir, 'etc', '*-release')):
-        os.chmod(image_dir, 0o0755)
         srv = os.path.join(image_dir, "srv")
         cvmfs = os.path.join(image_dir, "cvmfs")
         dev = os.path.join(image_dir, "dev")
@@ -146,7 +149,6 @@ def write_docker_image(image_dir, filesystem, image):
         if not os.path.exists(sys_dir):
             os.makedirs(sys_dir)
 
-    os.chmod(image_dir, 0o0555)
     return True
 
 def publish_docker_image(image_info, filesystem, rootdir='',
