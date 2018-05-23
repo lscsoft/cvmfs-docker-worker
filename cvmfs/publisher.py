@@ -27,7 +27,7 @@ import docker
 import os
 import stat
 import errno
-import fnmatch
+import glob
 import hashlib
 import tempfile
 import tarfile
