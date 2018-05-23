@@ -127,26 +127,26 @@ def write_docker_image(image_dir, filesystem, image):
                 print(("Fixing mode of", full_dname, "to", oct(new_mode)))
                 os.chmod(full_dname, new_mode)
 
-    # Make sure the image_dir is writable by us!
-    os.chmod(image_dir, 0o0755)
+    # if the image contains a linux operating system, then add bind points
+    if glob.glob(os.path.join(image_dir, 'etc', '*-release')):
+        os.chmod(image_dir, 0o0755)
+        srv = os.path.join(image_dir, "srv")
+        cvmfs = os.path.join(image_dir, "cvmfs")
+        dev = os.path.join(image_dir, "dev")
+        proc = os.path.join(image_dir, "proc")
+        sys_dir = os.path.join(image_dir, "sys")
+        if not os.path.exists(srv):
+            os.makedirs(srv)
+        if not os.path.exists(cvmfs):
+            os.makedirs(cvmfs)
+        if not os.path.exists(dev):
+            os.makedirs(dev)
+        if not os.path.exists(proc):
+            os.makedirs(proc)
+        if not os.path.exists(sys_dir):
+            os.makedirs(sys_dir)
 
-    # Various fixups to make the image compatible with CVMFS and singularity.
-    srv = os.path.join(image_dir, "srv")
-    cvmfs = os.path.join(image_dir, "cvmfs")
-    dev = os.path.join(image_dir, "dev")
-    proc = os.path.join(image_dir, "proc")
-    sys_dir = os.path.join(image_dir, "sys")
-    if not os.path.exists(srv):
-        os.makedirs(srv)
-    if not os.path.exists(cvmfs):
-        os.makedirs(cvmfs)
-    if not os.path.exists(dev):
-        os.makedirs(dev)
-    if not os.path.exists(proc):
-        os.makedirs(proc)
-    if not os.path.exists(sys_dir):
-        os.makedirs(sys_dir)
-
+    os.chmod(image_dir, 0o0555)
     return True
 
 def publish_docker_image(image_info, filesystem, rootdir='',
