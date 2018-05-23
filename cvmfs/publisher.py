@@ -65,15 +65,6 @@ def start_txn(filesystem):
         return 1
     _in_txn = True
 
-    # Test CVMFS mount
-    test_dir = os.path.join("/cvmfs", filesystem, ".images")
-    if not os.path.exists(test_dir):
-        try:
-            os.makedirs(test_dir)
-        except OSError as oe:
-            if oe.errno != errno.EEXIST:
-                raise
-
 def publish_txn(filesystem):
     global _in_txn
     if _in_txn:
