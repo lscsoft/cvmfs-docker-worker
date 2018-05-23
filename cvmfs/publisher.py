@@ -166,7 +166,7 @@ def publish_docker_image(image_info, filesystem, rootdir='',
     else:
         client = docker.from_env(timeout=3600)
         image = client.images.pull(image_info.name())
-        digest = image.attrs['RepoDigests'][0].split('@')[1]
+        alg, digest = image.attrs['RepoDigests'][0].split('@')[1].split(':')
         client.images.remove(image_info.name())
 
     # start transaction to trigger fs mount
@@ -176,11 +176,13 @@ def publish_docker_image(image_info, filesystem, rootdir='',
 
     # a single image can have multiple tags. User-facing directories with tags
     # should be symlinks to a single copy of the image
-    image_dir = os.path.join("/cvmfs", filesystem, rootdir, image_info.namespace, "%s@%s" % (image_info.project, digest))
+    image_dir = os.path.join("/cvmfs", filesystem, rootdir, image_info.namespace,
+        image_info.project, ".digests", alg, digest[0:2], digest)
     if not os.path.exists(image_dir):
         os.makedirs(image_dir)
         if write_docker_image(image_dir, filesystem, image_info.name()):
-            tag_dir = os.path.join("/cvmfs", filesystem, rootdir, image_info.namespace, "%s:%s" % (image_info.project, image_info.tag))
+            tag_dir = os.path.join("/cvmfs", filesystem, rootdir,
+                image_info.namespace, image_info.project, image_info.tag)
             create_symlink(os.path.basename(image_dir), tag_dir)
             publish_txn(filesystem)
         else:
