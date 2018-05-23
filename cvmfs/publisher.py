@@ -169,14 +169,15 @@ def publish_docker_image(image_info, filesystem, rootdir='',
 
     # a single image can have multiple tags. User-facing directories with tags
     # should be symlinks to a single copy of the image
+    digest_path = os.path.join(".digests", hash_alg, hash[0:2], hash)
     image_dir = os.path.join("/cvmfs", filesystem, rootdir, image_info.namespace,
-        image_info.project, ".digests", hash_alg, hash[0:2], hash)
+        image_info.project, digest_path)
     if not os.path.exists(image_dir):
         os.makedirs(image_dir)
         if write_docker_image(image_dir, filesystem, image_info.name()):
             tag_dir = os.path.join("/cvmfs", filesystem, rootdir,
                 image_info.namespace, image_info.project, image_info.tag)
-            create_symlink(os.path.basename(image_dir), tag_dir)
+            create_symlink(digest_path, tag_dir)
             publish_txn(filesystem)
         else:
             abort_txn(filesystem)
