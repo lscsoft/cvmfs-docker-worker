@@ -25,6 +25,7 @@ perform publicly and display publicly, and to permit other to do so.
 import sys
 import docker
 import os
+import pathlib
 import stat
 import errno
 import glob
@@ -98,6 +99,9 @@ def create_symlink(image_dir, tag_dir):
 def write_docker_image(image_dir, filesystem, image):
     # we should check to make sure that we're in a txn
 
+    # will use a mix of Python 3.4 pathlib and old-style os module for now
+    image_path = pathlib.Path(image_dir)
+
     status = os.system("singularity build --sandbox %s docker://%s" % (image_dir,image) )
     if os.WEXITSTATUS(status) != 0:
         return False
@@ -132,22 +136,15 @@ def write_docker_image(image_dir, filesystem, image):
     os.chmod(image_dir, 0o0755)
 
     # if the image contains a linux operating system, then add bind points
-    if glob.glob(os.path.join(image_dir, 'etc', '*-release')):
-        srv = os.path.join(image_dir, "srv")
-        cvmfs = os.path.join(image_dir, "cvmfs")
-        dev = os.path.join(image_dir, "dev")
-        proc = os.path.join(image_dir, "proc")
-        sys_dir = os.path.join(image_dir, "sys")
-        if not os.path.exists(srv):
-            os.makedirs(srv)
-        if not os.path.exists(cvmfs):
-            os.makedirs(cvmfs)
-        if not os.path.exists(dev):
-            os.makedirs(dev)
-        if not os.path.exists(proc):
-            os.makedirs(proc)
-        if not os.path.exists(sys_dir):
-            os.makedirs(sys_dir)
+    if list(image_path.glob('etc/*-release')):
+        bindpoints = [ 'srv', 'cvmfs', 'dev', 'proc', 'sys' ]
+        for bindpoint in bindpoints:
+            path_to_create = image_path / bindpoint
+            path_to_create.mkdir(parents=False,exist_ok=True)
+
+    # create .cvmfscatalog file so publishing indexes each container separately
+    cvmfscatalog = image_path / '.cvmfscatalog'
+    cvmfscatalog.touch()
 
     return True
 
