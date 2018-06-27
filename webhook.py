@@ -39,7 +39,8 @@ def is_accepted_tag(tag):
 
     # (1) matches arbirtary alphanumeric characters separated by periods
     # (2) matches ISO dates (no time) with optional alpha appended
-    regex_tags = [ '^(\w+\.)*\w+$', '^\d{4}\-\d\d\-\d\d[a-zA-Z]?$' ]
+    regex_tags = [ '^v?([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+)?$',
+        '^\d{4}\-\d\d\-\d\d[a-zA-Z]?$' ]
 
     if tag in explicit_tags:
         return True
