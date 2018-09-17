@@ -73,10 +73,55 @@ def publish_txn(filesystem):
         return os.system("cvmfs_server publish %s" % filesystem)
     return 0
 
-def create_symlink(image_dir, tag_dir):
+# both paths absolute
+def remove_publication(image_path, tag_link, publication_list_filename):
+
+    # read in publication list
+    with open(publication_list_filename, "r") as publication_list_fp:
+        publication_list = json.load(publication_list_fp)
+
+    # make modification in-memory
+    publication_list['publications'][image_path].remove(tag_link)
+
+    # re-publish entire list using "w" mode
+    with open(publication_list_filename, "w") as publication_list_fp:
+        json.dump(publication_list, publication_list_fp, indent=2,
+            sort_keys=True)
+
+    return 0
+
+# both paths absolute
+def add_publication(image_path, tag_link, publication_list_filename):
+
+    # open publication list JSON or create empty JSON file in its place
+    try:
+        with open(publication_list_filename, "r") as publication_list_fp:
+            publication_list = json.load(publication_list_fp)
+    except FileNotFoundError:
+        with open(publication_list_filename, "a+") as publication_list_fp:
+            publication_list = {} 
+            json.dump(publication_list, publication_list_fp)
+
+    # add publication to list, creating necessary dict structure if non-existent
+    try:
+        publication_list['publications'][image_path].append(tag_link)
+    except KeyError:
+        if 'publications' not in publication_list:
+            publication_list['publications'] = {}
+        publication_list['publications'][image_path] = []
+        publication_list['publications'][image_path].append(tag_link)
+
+    # re-publish entire list using "w" mode
+    with open(publication_list_filename, "w") as publication_list_fp:
+        json.dump(publication_list, publication_list_fp, indent=2,
+            sort_keys=True)
+
+    return 0
+
+def create_symlink(image_relative_path, tag_link, filesystem_basepath, publication_list_filename):
     # check to ensure that we are in a transaction
 
-    parent_dir = os.path.split(tag_dir)[0]
+    parent_dir = os.path.split(tag_link)[0]
 
     if not os.path.exists(parent_dir):
         try:
@@ -85,18 +130,25 @@ def create_symlink(image_dir, tag_dir):
             if oe.errno != errno.EEXIST:
                 raise
 
-    if not os.path.exists(tag_dir):
-        os.symlink(image_dir, tag_dir)
-    elif os.path.islink(tag_dir):
-        if os.readlink(tag_dir) != image_dir:
-            os.unlink(tag_dir)
-            os.symlink(image_dir, tag_dir)
+    if not os.path.exists(tag_link):
+        os.symlink(image_relative_path, tag_link)
+        add_publication(os.path.join(filesystem_basepath, image_relative_path),
+            tag_link, publication_list_filename)
+    elif os.path.islink(tag_link):
+        old_image_relative_path = os.readlink(tag_link)
+        if old_image_relative_path != image_relative_path:
+            os.unlink(tag_link)
+            remove_publication(os.path.join(filesystem_basepath, old_image_relative_path),
+                tag_link, publication_list_filename)
+            os.symlink(image_relative_path, tag_link)
+            add_publication(os.path.join(filesystem_basepath, image_relative_path),
+                tag_link, publication_list_filename)
     else:
         return 1
 
     return 0
 
-def write_docker_image(image_dir, filesystem, image):
+def write_docker_image(image_dir, image):
     # we should check to make sure that we're in a txn
 
     # will use a mix of Python 3.4 pathlib and old-style os module for now
@@ -168,15 +220,18 @@ def publish_docker_image(image_info, filesystem, rootdir='',
 
     # a single image can have multiple tags. User-facing directories with tags
     # should be symlinks to a single copy of the image
-    digest_path = os.path.join(".digests", hash_alg, hash[0:2], hash)
-    image_dir = os.path.join("/cvmfs", filesystem, rootdir, image_info.namespace,
-        image_info.project, digest_path)
+    publication_list_filename = os.path.join("/cvmfs", filesystem, rootdir,
+        ".publications.json")
+    filesystem_basepath = os.path.join("/cvmfs", filesystem, rootdir,
+        image_info.namespace, image_info.project)
+    digest_relative_path = os.path.join(".digests", hash_alg, hash[0:2], hash)
+    image_dir = os.path.join(filesystem_basepath, digest_relative_path)
     if not os.path.exists(image_dir):
         os.makedirs(image_dir)
-        if write_docker_image(image_dir, filesystem, image_info.name()):
-            tag_dir = os.path.join("/cvmfs", filesystem, rootdir,
-                image_info.namespace, image_info.project, image_info.tag)
-            create_symlink(digest_path, tag_dir)
+        if write_docker_image(image_dir, image_info.name()):
+            tag_link = os.path.join(filesystem_basepath, image_info.tag)
+            create_symlink(digest_relative_path, tag_link, filesystem_basepath,
+                publication_list_filename)
             publish_txn(filesystem)
         else:
             abort_txn(filesystem)
