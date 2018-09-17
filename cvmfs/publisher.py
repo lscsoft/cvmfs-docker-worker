@@ -226,12 +226,19 @@ def publish_docker_image(image_info, filesystem, rootdir='',
         image_info.namespace, image_info.project)
     digest_relative_path = os.path.join(".digests", hash_alg, hash[0:2], hash)
     image_dir = os.path.join(filesystem_basepath, digest_relative_path)
+    tag_link = os.path.join(filesystem_basepath, image_info.tag)
+
+    # if the path does not exist, use singularity to convert docker image to a
+    # sandbox. If it does exist, simply create a new symlink
     if not os.path.exists(image_dir):
         os.makedirs(image_dir)
         if write_docker_image(image_dir, image_info.name()):
-            tag_link = os.path.join(filesystem_basepath, image_info.tag)
             create_symlink(digest_relative_path, tag_link, filesystem_basepath,
                 publication_list_filename)
             publish_txn(filesystem)
         else:
             abort_txn(filesystem)
+    else:
+        create_symlink(digest_relative_path, tag_link, filesystem_basepath,
+            publication_list_filename)
+        publish_txn(filesystem)
