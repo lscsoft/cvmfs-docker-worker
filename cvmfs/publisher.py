@@ -118,6 +118,27 @@ def add_publication(image_path, tag_link, publication_list_filename):
 
     return 0
 
+def prune_publications(publication_list_filename):
+    # read in publication list
+    with open(publication_list_filename, "r") as publication_list_fp:
+        publication_list = json.load(publication_list_fp)
+
+    orphaned_publications = {k:v for (k,v) in publication_list['publications'].items() if not v}
+    for orphan in orphaned_publications:
+        orphan_path = Path(orphan)
+        shutil.rmtree(orphan)
+        del publication_list['publications'][orphan]
+        try:
+            orphan_path.parent.rmdir()
+        except OSError:
+            continue
+
+    # re-publish entire list using "w" mode
+    with open(publication_list_filename, "w") as publication_list_fp:
+        json.dump(publication_list, publication_list_fp, indent=2,
+            sort_keys=True)
+
+
 def create_symlink(image_relative_path, tag_link, filesystem_basepath, publication_list_filename):
     # check to ensure that we are in a transaction
 
@@ -153,8 +174,10 @@ def write_docker_image(image_dir, image):
 
     # will use a mix of Python 3.4 pathlib and old-style os module for now
     image_path = pathlib.Path(image_dir)
+    parent_path = image_path.parent
+    digest_name = image_path.name
 
-    status = os.system("singularity build --sandbox %s docker://%s" % (image_dir,image) )
+    status = os.system("docker run -v /var/run/docker.sock:/var/run/docker.sock -v %s:/output --privileged -t --rm ligo/docker2singularity:testing --name %s -f --uid 43064 --gid 500 %s" % (parent_path,digest_name,image) )
     if os.WEXITSTATUS(status) != 0:
         return False
 
@@ -235,10 +258,12 @@ def publish_docker_image(image_info, filesystem, rootdir='',
         if write_docker_image(image_dir, image_info.name()):
             create_symlink(digest_relative_path, tag_link, filesystem_basepath,
                 publication_list_filename)
+            prune_publications(publication_list_filename)
             publish_txn(filesystem)
         else:
             abort_txn(filesystem)
     else:
         create_symlink(digest_relative_path, tag_link, filesystem_basepath,
             publication_list_filename)
+        prune_publications(publication_list_filename)
         publish_txn(filesystem)
