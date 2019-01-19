@@ -33,6 +33,7 @@ import hashlib
 import tempfile
 import tarfile
 import json
+import shutil
 
 class ImageInfo:
     def __init__(self, registry, namespace, project, digest, tag="latest"):
@@ -125,7 +126,7 @@ def prune_publications(publication_list_filename):
 
     orphaned_publications = {k:v for (k,v) in publication_list['publications'].items() if not v}
     for orphan in orphaned_publications:
-        orphan_path = Path(orphan)
+        orphan_path = pathlib.Path(orphan)
         shutil.rmtree(orphan)
         del publication_list['publications'][orphan]
         try:
@@ -174,10 +175,8 @@ def write_docker_image(image_dir, image):
 
     # will use a mix of Python 3.4 pathlib and old-style os module for now
     image_path = pathlib.Path(image_dir)
-    parent_path = image_path.parent
-    digest_name = image_path.name
 
-    status = os.system("docker run -v /var/run/docker.sock:/var/run/docker.sock -v %s:/output --privileged -t --rm ligo/docker2singularity:testing --name %s -f --uid 43064 --gid 500 %s" % (parent_path,digest_name,image) )
+    status = os.system("docker run -v %s:/output --rm ligo/singularity:latest %s %s %s" % (image_dir, image, os.getuid(), os.getgid()) )
     if os.WEXITSTATUS(status) != 0:
         return False
 
